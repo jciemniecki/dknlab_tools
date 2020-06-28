@@ -5,7 +5,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 
-with open("tinypkg/__init__.py", "r") as f:
+with open("dknlab_tools/__init__.py", "r") as f:
     init = f.readlines()
 
 for line in init:
@@ -18,11 +18,11 @@ for line in init:
 
 
 setup(
-    name='tinypkg',
+    name='dknlab_tools',
     version=__version__,
     author=__author__,
     author_email=__email__,
-    description='A tiny, simple package for Recitation 3 of bebi103a (2019).',
+    description='Tools for data processing, analysis, and visualization from the NewmanLab@Caltech.',
     long_description=long_description,
     long_description_content_type='ext/markdown',
     packages=find_packages(),
