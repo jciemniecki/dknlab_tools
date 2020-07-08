@@ -1,4 +1,5 @@
 import pandas as pd
+import datetime
 
 
 def plate_condmap(filename, delimiter=';'):
@@ -56,6 +57,42 @@ def plate_condmap(filename, delimiter=';'):
     return df
 
 
+def _str2hours(datetime_string):
+    
+    # If over 24 hours, will convert 'date HH:MM:SS' to 'HH:MM:SS' 
+    # and store number of hours to account for
+    if ' ' in datetime_string:
+        days, time_string = datetime_string.split()
+        accounted_hours = int(days[-2:]) * 24
+    else:
+        time_string = datetime_string
+        accounted_hours = 0
+    
+    # Grab the numbers
+    hours, minutes, seconds = time_string.split(':', 2)
+    
+    # Check that all values are numbers
+    if not ((hours.isdigit()) & (minutes.isdigit()) & (seconds.isdigit())): 
+        raise RuntimeError("""Time format within the data is improper. Verify that all time points are in the format hours:minutes:seconds.""")
+                                  
+    # Convert to floats for math
+    hours = float(hours) + accounted_hours
+    minutes = float(minutes)
+    seconds = float(seconds)
+    
+    # Check that input was in proper format 
+    if not ((minutes < 60) & (seconds < 60)):
+        raise RuntimeError("""Time format within the data is improper. Verify that minutes and seconds values are less than 60.""")
+    
+    # Convert
+    min_as_hours = minutes / 60
+    sec_as_hours = seconds / 3600
+    time_in_hours = hours + min_as_hours + sec_as_hours
+    
+    # Round to decimal place that preserves 1 second differences fully
+    return round(time_in_hours, 3)
+
+
 def wrangle_growthcurves(filename, merged=True):
     """Imports Tecan's default excel output for time-course data,
     parses out separate measurement types (if there are multiple).
@@ -74,52 +111,55 @@ def wrangle_growthcurves(filename, merged=True):
     """
     
     
-    df = pd.read_excel(filename, sep=',', sheet_name=0)
+    df = pd.read_excel(filename, sep=',', sheet_name=0, header=None)
     
     # The rows that indicate start/end of data
-    rows = ['Cycle Nr.', 'End Time']
+    rows = ['Kinetic read']
     
     # Make an iterable of the row numbers we're interested in
     inds = df[df[df.columns[0]].isin(rows)].index
     
     # Instantiate list of dfs per measurement type
-    # Ignore last inds entry because it just marks the end of the data
-    df_list = [0]*(len(inds)-1)
+    df_list = [0] * len(inds)
     measurement_list = []
-    
+
     # Load dataframes into measurement list and tidy them
-    for i in range(len(inds)-1):
+    for i in range(len(inds)):
         
-        # Grab the name of the measurement type from the df
-        m = str(df.iloc[inds[i]-1,0])
-        measurement_list.append(m)
+        # If there is a row above 'Kinetic read' store it 
+        # as the name of the measurement type
+        if (inds[i]-1) >= 0:
+            m = str(df.iloc[inds[i]-1,0])
+            measurement_list.append(m)
+        else:
+            measurement_list.append('value'+str(i))
         
         # Grab the relevant excel inds
-        start_ind = inds[i]+1
-        size = inds[i+1]-inds[i]-2
+        start_ind = inds[i]
+        #size = inds[i+1]-inds[i]-2
         
         # Load in sub-df from excel file
-        df_list[i] = pd.read_excel(filename,
-                                            skiprows=start_ind,  
-                                            nrows=size)
-        
+        df_list[i] = pd.read_excel(filename, skiprows=start_ind)
+    
         # Drop NaN rows
         df_list[i] = df_list[i].dropna(how='all')
         
         # Add a time column in units of hours
-        hours = (df_list[i]['Time [s]']/3600).round()
+        hours = df_list[i]['Kinetic read'].astype('str').apply(_str2hours)
+    
         df_list[i]['Time [hr]'] = hours
         
         # Melt all the well identifier columns (e.g. A1, A2, etc.)
         df_list[i] = pd.melt(df_list[i],\
                                       id_vars=['Time [hr]', 
-                                               'Cycle Nr.', 
-                                               'Time [s]', 
-                                               'Temp. [°C]'])
+                                               'Kinetic read'])
         
         # Rename the new, ambiguously named columns
         df_list[i] = df_list[i].rename(
-                                    columns={'variable':"well",                                                          'value':m})
+                                    columns={'variable':'well','value':m})
+        
+        # Delete Kinetic read column
+        df_list[i] = df_list[i].drop('Kinetic read', axis=1)
     
     if merged == True:
         
@@ -139,6 +179,7 @@ def wrangle_growthcurves(filename, merged=True):
     
     else:
         return tuple(df_list)
+    
     
 def import_growthcurves(legend_file_path, data_file_path):
     """Imports Tecan data with a legend and outputs a tidy dataframe 
