@@ -141,7 +141,7 @@ def plot_growthcurves(data=None,
         
         replicates, data = check_replicates(data,
                                             'Time [hr]',
-                                            'OD500',
+                                            yaxis,
                                             [colorby,plotby])
         if replicates:
             value = yaxis
