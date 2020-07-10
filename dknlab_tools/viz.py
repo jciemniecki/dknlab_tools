@@ -149,7 +149,7 @@ def plot_growthcurves(data=None,
             
         
         # Set the color map to the number of labels in that column
-        cmap = hv.Cycle(palette)
+        cmap = hv.Cycle(list(palette))
         
         curve = hv.Curve(
                     data,
