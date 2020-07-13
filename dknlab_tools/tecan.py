@@ -24,7 +24,7 @@ def plate_condmap(filename, delimiter=';'):
     
     # Melt column names (1, 2, etc) into their own df column
     df = df.melt(id_vars=['variable','row'], 
-                 value_vars=[1,2,3,4,5,6,7,8],
+                 value_vars=[1,2,3,4,5,6,7,8,9,10,11,12],
                  var_name='column')
     
     # Reformat into well identifier (A1, A2, etc)
@@ -140,7 +140,7 @@ def wrangle_growthcurves(filename, merged=True):
     else:
         return tuple(df_list)
     
-def import_growthcurves(legend_file_path, data_file_path):
+def import_growthcurves(data_file_path, legend_file_path):
     """Imports Tecan data with a legend and outputs a tidy dataframe 
     ready for EDA and viz.
     
@@ -154,9 +154,8 @@ def import_growthcurves(legend_file_path, data_file_path):
     -------
     df : (DataFrame) tidy, all measurements and annotations combined
     """
+    df_data = wrangle_growthcurves(data_file_path)
     
     legend_df = plate_condmap(legend_file_path)
-    df_data = wrangle_growthcurves(data_file_path)
-    df = df_data.merge(legend_df, on='well')
     
-    return df
+    return df_data.merge(legend_df, on='well')

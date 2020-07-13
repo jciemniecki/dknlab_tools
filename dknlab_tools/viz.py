@@ -132,8 +132,10 @@ def plot_growthcurves(data=None,
         
             if n_colorby_cats > 10:
                 raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
-            
-            palette = bokeh.palettes.Category10[n_colorby_cats]
+            elif n_colorby_cats < 3:
+                palette = bokeh.palettes.Category10[3]
+            else:
+                palette = bokeh.palettes.Category10[n_colorby_cats]
             
         elif n_colorby_cats > len(palette):
                 raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 

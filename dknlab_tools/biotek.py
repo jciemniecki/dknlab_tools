@@ -20,12 +20,12 @@ def plate_condmap(filename, delimiter=';'):
         and all the labels filled into the excel template
     """
     
-    # Read in condition map
+    # Read in excel condition map
     df = pd.read_excel(filename, dtype=str)
-    
+
     # Melt column names (1, 2, etc) into their own df column
     df = df.melt(id_vars=['variable','row'], 
-                 value_vars=[1,2,3,4,5,6,7,8],
+                 value_vars=[1,2,3,4,5,6,7,8,9,10,11,12],
                  var_name='column')
     
     # Reformat into well identifier (A1, A2, etc)
@@ -110,43 +110,47 @@ def wrangle_growthcurves(filename, merged=True):
         measurement
     """
     
-    
+    # Import data, immediately drop any rows that have all NaN values.
     df = pd.read_excel(filename, sep=',', sheet_name=0, header=None)
-    
-    # The rows that indicate start/end of data
+
+    # The rows that indicate start/end of a measurement type
     rows = ['Kinetic read']
     
-    # Make an iterable of the row numbers we're interested in
-    inds = df[df[df.columns[0]].isin(rows)].index
+    # Make an iterable of those row numbers
+    m_inds = df[df[df.columns[0]].isin(rows)].index
     
-    # Instantiate list of dfs per measurement type
-    df_list = [0] * len(inds)
+    # Instantiate list of size n per measurement type
+    n_measurements = len(m_inds)
+    df_list = [0] * n_measurements
+    
+    # Instantiate empty list to hold names of measurements
     measurement_list = []
 
-    # Load dataframes into measurement list and tidy them
-    for i in range(len(inds)):
+    # Put dataframes into df_list
+    # (one per measurement) and tidy them
+    for i in range(n_measurements):
         
         # If there is a row above 'Kinetic read' store it 
         # as the name of the measurement type
-        if (inds[i]-1) >= 0:
-            m = str(df.iloc[inds[i]-1,0])
+        if (m_inds[i]-1) >= 0:
+            m = str(df.iloc[m_inds[i]-1,0])
             measurement_list.append(m)
         else:
             measurement_list.append('value'+str(i))
         
         # Grab the relevant excel inds
-        start_ind = inds[i]
-        #size = inds[i+1]-inds[i]-2
+        start_ind = m_inds[i]
+        #size = m_inds[i+1]-m_inds[i]-2
         
         # Load in sub-df from excel file
         df_list[i] = pd.read_excel(filename, skiprows=start_ind)
-    
-        # Drop NaN rows
-        df_list[i] = df_list[i].dropna(how='all')
+        
+        # Pull out the timepoints, in decimal hours,
+        # from the STUPID excel datetime format
+        # using custom _str2hours function
+        hours = df_list[i]['Kinetic read'].astype('str').apply(_str2hours)
         
         # Add a time column in units of hours
-        hours = df_list[i]['Kinetic read'].astype('str').apply(_str2hours)
-    
         df_list[i]['Time [hr]'] = hours
         
         # Melt all the well identifier columns (e.g. A1, A2, etc.)
@@ -160,6 +164,9 @@ def wrangle_growthcurves(filename, merged=True):
         
         # Delete Kinetic read column
         df_list[i] = df_list[i].drop('Kinetic read', axis=1)
+        
+        # Delete any rows that remain with NaN values
+        df_list[i] = df_list[i].dropna(how='any')
     
     if merged == True:
         
@@ -181,7 +188,7 @@ def wrangle_growthcurves(filename, merged=True):
         return tuple(df_list)
     
     
-def import_growthcurves(legend_file_path, data_file_path):
+def import_growthcurves(data_file_path, legend_file_path):
     """Imports Tecan data with a legend and outputs a tidy dataframe 
     ready for EDA and viz.
     
@@ -196,8 +203,8 @@ def import_growthcurves(legend_file_path, data_file_path):
     df : (DataFrame) tidy, all measurements and annotations combined
     """
     
-    legend_df = plate_condmap(legend_file_path)
     df_data = wrangle_growthcurves(data_file_path)
-    df = df_data.merge(legend_df, on='well')
     
-    return df
+    legend_df = plate_condmap(legend_file_path)
+    
+    return df_data.merge(legend_df, on='well')
