@@ -3,8 +3,8 @@ import numpy as np
 from holoviews import opts
 import bokeh.palettes
 hv.extension('bokeh')
-hv.opts.defaults(opts.NdOverlay(height=200,
-                                width=300,
+hv.opts.defaults(opts.NdOverlay(height=250,
+                                width=400,
                                 legend_position='right',
                                 legend_offset=(10,0)))
 
@@ -81,10 +81,43 @@ def plot_growthcurves(data=None,
                       xaxis='Time [hr]',
                       colorby=None, # Not fully coded yet
                       plotby=None, # Not fully coded yet
-                      stride=1, # Not coded yet
-                      show_all_data=True, # Not coded yet
-                      yaxis_log=True, # Not coded yet
-                      palette=None):
+                      palette=None,
+                      yaxis_log=True,
+                      height=250, # Not coded yet
+                      width=400, # Not coded yet
+                      cols=2,
+                      show_all_data=True):
+                      # publication_opts=True, # Not coded yet
+                      # stride=1, # Not coded yet
+    
+     """Plots growth curves from a tidy dataframe.
+
+    kwargs
+    ----------
+    data : (DataFrame) growth curve data in tidy format
+    yaxis : (string) name of column in data to be plotted on y axis
+    xaxis : (string) name of column in data to be plotted on x axis.
+        Default assumes data was supplied from import_growthcurve function 
+        in dknlab_tools and therefore has x axis name 'Time [hr]'.
+    colorby : (string) name of column variable in data to color the 
+        growth curves by
+    plotby : (string) name of column variable in data to plot the 
+        growth curves by
+    palette : (list) color palette to use. If None is supplied, will use
+        Category10 palette by default. (can find others in bokeh.palettes)
+    yaxis_log : (boolean) to toggle display of log axes in y.
+    height : (int) height of individual plots
+    width : (int) width of individual plots
+    cols : (int) number of columns to display the plots in
+    show_all_data : (boolean) to toggle display of individual replicates.
+        Not sure why you'd want to change this, but here it is.
+    
+    
+    Returns
+    -------
+    chart : (NdOverlay) exploratory plot of growth curves
+    """
+    
     
     # Sort values for proper plotting of time series
     data = data.sort_values(xaxis)
@@ -92,7 +125,9 @@ def plot_growthcurves(data=None,
     # Pull out available encodings (column names)
     encodings = [*list(data.columns)]
     
+    ##############
     # Simplest case, single curve:
+    ##############
     if ((colorby == None) & (plotby == None)):
         
         palette = bokeh.palettes.Category10[10]
@@ -114,8 +149,21 @@ def plot_growthcurves(data=None,
             
         return chart
         
+    ##############
+    # Multi-color case:
+    ##############
+    if ((colorby != None) & (plotby == None)):
+        
+        
+    ##############
+    # Multi-plot case:
+    ##############
+    if ((colorby == None) & (plotby != None)):
+        
     
-    # Multi-lines and multi-plots case:
+    ##############
+    # Multi-color and multi-plot case:
+    ##############
     if ((colorby != None) & (plotby != None)):
         
         # Check to ensure the supplied column names exists
@@ -145,10 +193,10 @@ def plot_growthcurves(data=None,
                                             'Time [hr]',
                                             yaxis,
                                             [colorby,plotby])
+        
         if replicates:
             value = yaxis
             yaxis = 'Mean of '+yaxis
-            
         
         # Set the color map to the number of labels in that column
         cmap = hv.Cycle(list(palette))
@@ -161,12 +209,12 @@ def plot_growthcurves(data=None,
                     [colorby, plotby],
                 ).opts(
                     color=cmap,
-                    logy=True,
+                    logy=yaxis_log,
                 ).overlay(
                     colorby
                 ).layout(
                     plotby
-                ).cols(2)
+                ).cols(cols)
         
         if replicates & show_all_data:
             scatter = hv.Scatter(
@@ -177,23 +225,16 @@ def plot_growthcurves(data=None,
                            [colorby, plotby],
                        ).opts(
                            color=cmap,
+                           logy=yaxis_log,
                            alpha=0.25,
-                           logy=True,
                        ).overlay(
                            colorby
                        ).layout(
                            plotby
-                       ).cols(3)
+                       ).cols(cols)
             
             chart = scatter * curve
         else:
             chart = curve
             
         return chart
-                        
-        
-        
-    #if ((colorby == None) & (plotby != None)):
-        
-        
-    
