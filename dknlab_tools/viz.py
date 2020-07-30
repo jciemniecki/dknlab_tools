@@ -3,12 +3,10 @@ import numpy as np
 from holoviews import opts
 import bokeh.palettes
 hv.extension('bokeh')
-hv.opts.defaults(opts.NdOverlay(height=250,
-                                width=400,
-                                legend_position='right',
+hv.opts.defaults(opts.NdOverlay(legend_position='right',
                                 legend_offset=(10,0)))
 
-def check_replicates(df, variable, value, grouping):
+def _check_replicates(df, variable, value, grouping):
     """Checks for the presence of replicates in the values of a dataset,
     given some experimental conditions. Returns True if the standard
     deviation of the values of each group (if more than one exists) is
@@ -74,23 +72,52 @@ def check_replicates(df, variable, value, grouping):
         df_return = df
 
     return replicates, df_return
+
+def _check_columns(check, df):
     
+    if isinstance(check, list):
+        for name in check:
+            if name not in df.columns:
+                raise RuntimeError(f"Supplied column name {name} does not exist. Spelling must match intended column name in dataframe.")
+    else:
+            if check not in df.columns:
+                raise RuntimeError(f"Supplied column name {check} does not exist. Spelling must match intended column name in dataframe.")
+    
+def _check_palette(palette, colorby, data):
+    
+        n_colorby_cats = data.groupby(colorby).ngroups
+        
+        if palette is None:
+        
+            if n_colorby_cats > 10:
+                raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
+                
+            elif n_colorby_cats < 3:
+                return bokeh.palettes.Category10[3]
+            
+            else:
+                return bokeh.palettes.Category10[n_colorby_cats]
+            
+        elif n_colorby_cats > len(palette):
+            raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.")
+        else:
+            return palette
     
 def plot_growthcurves(data=None,
                       yaxis=None,
                       xaxis='Time [hr]',
-                      colorby=None, # Not fully coded yet
-                      plotby=None, # Not fully coded yet
+                      colorby=None, 
+                      plotby=None, 
                       palette=None,
                       yaxis_log=True,
-                      height=250, # Not coded yet
-                      width=400, # Not coded yet
+                      height=350,
+                      width=500,
                       cols=2,
                       show_all_data=True):
                       # publication_opts=True, # Not coded yet
                       # stride=1, # Not coded yet
     
-     """Plots growth curves from a tidy dataframe.
+    """Plots growth curves from a tidy dataframe.
 
     kwargs
     ----------
@@ -118,6 +145,9 @@ def plot_growthcurves(data=None,
     chart : (NdOverlay) exploratory plot of growth curves
     """
     
+    # Ensure supplied x and y axis exist within dataframe
+    _check_columns(xaxis, data)
+    _check_columns(yaxis, data)
     
     # Sort values for proper plotting of time series
     data = data.sort_values(xaxis)
@@ -130,7 +160,7 @@ def plot_growthcurves(data=None,
     ##############
     if ((colorby == None) & (plotby == None)):
         
-        palette = bokeh.palettes.Category10[10]
+        palette = _check_palette(palette, 'Well', data)
         cmap = hv.Cycle(palette)
         
         curve= hv.Curve(
@@ -138,61 +168,168 @@ def plot_growthcurves(data=None,
                     kdims=[xaxis],
                     vdims=[yaxis,*encodings]
                 ).groupby(
-                    'well',
+                    'Well',
                 ).opts(
                     color=cmap,
-                    logy=True
+                    logy=yaxis_log,
+                    muted_line_alpha=0.0,
+                    height=height,
+                    width=width,
                 ).overlay(
-                    'well')
-        
-        chart = curve
+                    'Well')
             
-        return chart
+        return curve
         
     ##############
     # Multi-color case:
     ##############
     if ((colorby != None) & (plotby == None)):
         
+        if not isinstance(colorby, list):
+            colorby = [colorby]
+        
+        # Check supplied column names are in dataframe
+        _check_columns(colorby, data)
+            
+        # Check to ensure the palette is large enough to support the data
+        # If no palette was supplied, set to default Category10
+        palette = _check_palette(palette, colorby, data)
+        
+        # Check for replicates
+        replicates, data = _check_replicates(data,
+                                             xaxis,
+                                             yaxis,
+                                             colorby)
+        
+        if replicates:
+            value = yaxis
+            yaxis = 'Mean of '+yaxis
+            
+        # Set the color map to the number of labels in that column
+        cmap = hv.Cycle(list(palette))
+        
+        curve = hv.Curve(
+                    data,
+                    [xaxis],
+                    [yaxis, *encodings],
+                ).groupby(
+                    [*colorby],
+                ).opts(
+                    color=cmap,
+                    logy=yaxis_log,
+                    muted_line_alpha=0.0,
+                ).overlay(
+                    [*colorby]
+                )
+        
+        if replicates & show_all_data:
+            scatter = hv.Scatter(
+                           data,
+                           [xaxis],
+                           [value, *encodings],
+                       ).groupby(
+                           [*colorby],
+                       ).opts(
+                           color=cmap,
+                           logy=yaxis_log,
+                           alpha=0.25,
+                           muted_fill_alpha=0.0,
+                           muted_line_alpha=0.0,
+                       ).overlay(
+                           [*colorby]
+                       )
+            
+            chart = scatter * curve
+        else:
+            chart = curve
+        
+        chart.opts(height=height, width=width)
+        
+        return chart
         
     ##############
     # Multi-plot case:
     ##############
     if ((colorby == None) & (plotby != None)):
         
+        if not isinstance(plotby, list):
+            plotby = [plotby]
+        
+        # Check supplied column names are in dataframe
+        _check_columns(plotby, data)
+        
+        # Check for replicates
+        replicates, data = _check_replicates(data,
+                                             xaxis,
+                                             yaxis,
+                                             plotby)
+        
+        if replicates:
+            value = yaxis
+            yaxis = 'Mean of '+yaxis
+            
+        curve = hv.Curve(
+                    data,
+                    [xaxis],
+                    [yaxis, *encodings],
+                ).groupby(
+                    [*plotby],
+                ).opts(
+                    logy=yaxis_log,
+                    height=height,
+                    width=width,
+                ).layout(
+                    [*plotby]
+                ).cols(
+                    cols)
+        
+        if replicates & show_all_data:
+            scatter = hv.Scatter(
+                           data,
+                           [xaxis],
+                           [value, *encodings],
+                       ).groupby(
+                           [*plotby],
+                       ).opts(
+                           logy=yaxis_log,
+                           alpha=0.25,
+                           muted_fill_alpha=0.0,
+                           muted_line_alpha=0.0,
+                           height=height,
+                           width=width,
+                       ).layout(
+                           [*plotby]
+                       ).cols(cols)
+            
+            chart = scatter * curve
+        else:
+            chart = curve
+
+        return chart
     
     ##############
     # Multi-color and multi-plot case:
     ##############
     if ((colorby != None) & (plotby != None)):
         
+        if not isinstance(colorby, list):
+            colorby = [colorby]
+        if not isinstance(plotby, list):
+            plotby = [plotby]
+        
         # Check to ensure the supplied column names exists
-        if colorby not in data.columns:
-            raise RuntimeError(f"Supplied colorby column name {colorby} does not exist. Spelling must match intended column name in dataframe.")
-        
-        if plotby not in data.columns:
-            raise RuntimeError(f"Supplied plotby column name {plotby} does not exist. Spelling must match intended column name in dataframe.")
+        _check_columns(colorby, data)
+        _check_columns(plotby, data)
             
-        # Check to ensure the palette can support n_colorby_cats
-        n_colorby_cats = data[colorby].nunique()
+        # Check to ensure the palette is large enough to support the data
+        # If no palette was supplied, set to default Category10
+        palette = _check_palette(palette, colorby, data)
         
-        if palette is None:
-        
-            if n_colorby_cats > 10:
-                raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
-            elif n_colorby_cats < 3:
-                palette = bokeh.palettes.Category10[3]
-            else:
-                palette = bokeh.palettes.Category10[n_colorby_cats]
-            
-        elif n_colorby_cats > len(palette):
-                raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
-        
-        
-        replicates, data = check_replicates(data,
-                                            'Time [hr]',
-                                            yaxis,
-                                            [colorby,plotby])
+        # Check for replicates
+        replicates, data = _check_replicates(data,
+                                             xaxis,
+                                             yaxis,
+                                             [*colorby,*plotby])
         
         if replicates:
             value = yaxis
@@ -206,14 +343,17 @@ def plot_growthcurves(data=None,
                     [xaxis],
                     [yaxis, *encodings],
                 ).groupby(
-                    [colorby, plotby],
+                    [*colorby, *plotby],
                 ).opts(
                     color=cmap,
                     logy=yaxis_log,
+                    muted_alpha=0.0,
+                    height=height,
+                    width=width,
                 ).overlay(
-                    colorby
+                    [*colorby]
                 ).layout(
-                    plotby
+                    [*plotby]
                 ).cols(cols)
         
         if replicates & show_all_data:
@@ -222,15 +362,19 @@ def plot_growthcurves(data=None,
                            [xaxis],
                            [value, *encodings],
                        ).groupby(
-                           [colorby, plotby],
+                           [*colorby, *plotby],
                        ).opts(
                            color=cmap,
                            logy=yaxis_log,
                            alpha=0.25,
+                           muted_fill_alpha=0.0,
+                           muted_line_alpha=0.0,
+                           height=height,
+                           width=width,
                        ).overlay(
-                           colorby
+                           [*colorby]
                        ).layout(
-                           plotby
+                           [*plotby]
                        ).cols(cols)
             
             chart = scatter * curve
@@ -238,3 +382,10 @@ def plot_growthcurves(data=None,
             chart = curve
             
         return chart
+    
+def save(plot, filename, filetype='html'):
+    """
+    Saves supplied plot with the supplied filename. Default
+    format is html. Can also save as png or svg.
+    """
+    hv.save(plot, filename, fmt=filetype)

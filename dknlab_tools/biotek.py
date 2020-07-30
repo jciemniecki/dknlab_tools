@@ -39,11 +39,11 @@ def plate_condmap(filename,
                  var_name='column')
     
     # Reformat into well identifier (A1, A2, etc)
-    df['well'] = df['row'].apply(str) + df['column'].apply(str)
+    df['Well'] = df['row'].apply(str) + df['column'].apply(str)
     df.drop(columns = ["row", "column"], inplace=True)
     
     # Pivot to be tidy, then eliminate extra index names
-    df = df.pivot(index='well', columns='variable')
+    df = df.pivot(index='Well', columns='variable')
     df.columns = df.columns.droplevel(0)
     df = df.rename_axis(columns=None)
     
@@ -96,7 +96,7 @@ def plate_condmap(filename,
             
             concs = concs.astype('float')
             df = pd.concat([df, concs], axis = 1)
-             
+
             # Remove superfluous condition and multi-concentration columns
             df.drop(columns =['Condition'], inplace=True)
             df.drop(columns =['Condition Conc. (µM)'], inplace=True)
@@ -108,17 +108,16 @@ def plate_condmap(filename,
 
 
 def _str2hours(datetime_string):
-     """Converts excel datetime format to decimal hours.
+    """Converts excel datetime format to decimal hours.
     
     Parameters
     ----------
     datetime_string : (string)
-
+    
     Returns
     -------
     time_in_hours : (float)
     """
-    
     
     # If over 24 hours, will convert 'date HH:MM:SS' to 'HH:MM:SS' 
     # and store number of hours to account for
@@ -154,21 +153,17 @@ def _str2hours(datetime_string):
     return round(time_in_hours, 3)
 
 
-def wrangle_growthcurves(filename, merged=True):
+def wrangle_growthcurves(filename):
     """Imports Tecan's default excel output for time-course data,
     parses out separate measurement types (if there are multiple).
     
     Parameters
     ----------
     filename : (string) filepath to the Tecan excel output
-    merged : (boolean) determines whether output is merged dataframe 
-        or a list of dataframes per measurment 
-
+    
     Returns
     -------
-    df_out : (DataFrame) tidy, all measurements combined
-    OR
-    df_list : (list of DataFrames) each tidied, one per
+    df_list : (tuple of DataFrames) each tidied, one per
         measurement
     """
     
@@ -178,11 +173,12 @@ def wrangle_growthcurves(filename, merged=True):
     # The rows that indicate start/end of a measurement type
     rows = ['Kinetic read']
     
-    # Make an iterable of those row numbers
+    # Make an iterable of those row numbers plus the end of the dataframe
     m_inds = df[df[df.columns[0]].isin(rows)].index
+    n_measurements = len(m_inds)
+    m_inds = m_inds.union([len(df)+3])
     
     # Instantiate list of size n per measurement type
-    n_measurements = len(m_inds)
     df_list = [0] * n_measurements
     
     # Instantiate empty list to hold names of measurements
@@ -202,10 +198,12 @@ def wrangle_growthcurves(filename, merged=True):
         
         # Grab the relevant excel inds
         start_ind = m_inds[i]
-        #size = m_inds[i+1]-m_inds[i]-2
+        size = m_inds[i+1]-m_inds[i]-3
         
         # Load in sub-df from excel file
-        df_list[i] = pd.read_excel(filename, skiprows=start_ind)
+        df_list[i] = pd.read_excel(filename, 
+                                   skiprows=start_ind, 
+                                   nrows=size)
         
         # Pull out the timepoints, in decimal hours,
         # from the STUPID excel datetime format
@@ -216,45 +214,45 @@ def wrangle_growthcurves(filename, merged=True):
         df_list[i]['Time [hr]'] = hours
         
         # Melt all the well identifier columns (e.g. A1, A2, etc.)
-        df_list[i] = pd.melt(df_list[i],\
-                                      id_vars=['Time [hr]', 
-                                               'Kinetic read'])
+        df_list[i] = pd.melt(df_list[i],
+                             id_vars=['Time [hr]','Kinetic read'])
         
         # Rename the new, ambiguously named columns
         df_list[i] = df_list[i].rename(
-                                    columns={'variable':'well','value':m})
+                                    columns={'variable':'Well','value':m})
         
         # Delete Kinetic read column
         df_list[i] = df_list[i].drop('Kinetic read', axis=1)
         
-        # Delete any rows that remain with NaN values
+        # Delete any rows that remain with 'OVRFLW' or NaN values
+        df_list[i][m] = pd.to_numeric(df_list[i][m], errors='coerce')
         df_list[i] = df_list[i].dropna(how='any')
     
-    if merged == True:
+#     if merged == True:
         
-        # loop over number of measurments to merge
-        for i, m in enumerate(measurement_list):
+#         # loop over number of measurments to merge
+#         for i, m in enumerate(measurement_list):
             
-            # instantiate new df on first loop
-            if i == 0:
-                df_out = df_list[i]
+#             # instantiate new df on first loop
+#             if i == 0:
+#                 df_out = df_list[i]
                 
-            # merge measurment m to the output dataframe
-            if i > 0:
-                mini_df = df_list[i][['well', 'Time [hr]', m]]
-                df_out = df_out.merge(mini_df, on=['well','Time [hr]'])
+#             # merge measurment m to the output dataframe
+#             if i > 0:
+#                 mini_df = df_list[i][['Well', 'Time [hr]', m]]
+#                 df_out = pd.concat([df_out, mini_df], axis=0)
     
-        return df_out
+#         return df_out
     
-    else:
-        return tuple(df_list)
+#     else:
+    return tuple(df_list)
     
     
 def import_growthcurves(data_file_path, 
                         condition_map_file_path,
                         verbose=False):
-    """Imports Biotek data with a condition map and outputs a tidy 
-    dataframe ready for EDA with the viz module.
+    """Imports Biotek data with a condition map and outputs a collection
+    of tidy dataframes ready for EDA with the viz module.
     
     Parameters
     ----------
@@ -270,11 +268,13 @@ def import_growthcurves(data_file_path,
 
     Returns
     -------
-    df : (DataFrame) tidy, all measurements and annotations combined
+    df_list : (tuple of DataFrame) each tidy, each annotated
     """
     
     df_data = wrangle_growthcurves(data_file_path)
     
-    condition_df = plate_condmap(condition_map_file_path)
+    condition_df = plate_condmap(condition_map_file_path, verbose=verbose)
     
-    return df_data.merge(condition_df, on='well')
+    df_list = [df.merge(condition_df, on='Well') for df in df_data]
+    
+    return tuple(df_list)

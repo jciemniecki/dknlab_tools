@@ -37,11 +37,11 @@ def plate_condmap(filename,
                  var_name='column')
     
     # Reformat into well identifier (A1, A2, etc)
-    df['well'] = df['row'].apply(str) + df['column'].apply(str)
+    df['Well'] = df['row'].apply(str) + df['column'].apply(str)
     df.drop(columns = ["row", "column"], inplace=True)
     
     # Pivot to be tidy, then eliminate extra index names
-    df = df.pivot(index='well', columns='variable')
+    df = df.pivot(index='Well', columns='variable')
     df.columns = df.columns.droplevel(0)
     df = df.rename_axis(columns=None)
     
@@ -168,7 +168,11 @@ def wrangle_growthcurves(filename, merged=True):
         
         # Rename the new, ambiguously named columns
         df_list[i] = df_list[i].rename(
-                                    columns={'variable':"well",                                                          'value':m})
+                                    columns={'variable':"Well",                                                          'value':m})
+        
+        # Delete any rows that remain with 'OVRFLW' or NaN values
+        df_list[i][m] = pd.to_numeric(df_list[i][m], errors='coerce')
+        df_list[i] = df_list[i].dropna(how='any')
     
     if merged == True:
         
@@ -181,8 +185,8 @@ def wrangle_growthcurves(filename, merged=True):
                 
             # merge measurment m to the output dataframe
             if i > 0:
-                mini_df = df_list[i][['well', 'Time [hr]', m]]
-                df_out = df_out.merge(mini_df, on=['well','Time [hr]'])
+                mini_df = df_list[i][['Well', 'Time [hr]', m]]
+                df_out = df_out.merge(mini_df, on=['Well','Time [hr]'])
     
         return df_out
     
@@ -214,6 +218,6 @@ def import_growthcurves(data_file_path,
     
     df_data = wrangle_growthcurves(data_file_path)
     
-    condition_df = plate_condmap(condition_map_file_path)
+    condition_df = plate_condmap(condition_map_file_path, verbose=verbose)
     
-    return df_data.merge(condition_df, on='well')
+    return df_data.merge(condition_df, on='Well')
