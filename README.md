@@ -6,7 +6,7 @@ Tools for data processing, analysis, and visualization from the NewmanLab@Caltec
 To install, click the latest stable release on the right hand side of github's dashboard, and download the .zip file. 
 Save it and unzip it somewhere stable (e.g., user root) on your computer.
 
-In your terminal, navigate to into the dknlab_tools folder and run:
+In your terminal, navigate into the dknlab_tools folder and run:
 
     pip install .
     
