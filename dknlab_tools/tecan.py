@@ -123,7 +123,7 @@ def wrangle_growthcurves(filename, merged=True):
     """
     
     
-    df = pd.read_excel(filename, sep=',', sheet_name=0)
+    df = pd.read_excel(filename, sheet_name=0)
     
     # The rows that indicate start/end of data
     rows = ['Cycle Nr.', 'End Time']

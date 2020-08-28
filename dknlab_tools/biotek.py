@@ -168,7 +168,7 @@ def wrangle_growthcurves(filename):
     """
     
     # Import data, immediately drop any rows that have all NaN values.
-    df = pd.read_excel(filename, sep=',', sheet_name=0, header=None)
+    df = pd.read_excel(filename, sheet_name=0, header=None)
 
     # The rows that indicate start/end of a measurement type
     rows = ['Kinetic read']
