@@ -154,7 +154,7 @@ def _str2hours(datetime_string):
 
 
 def wrangle_growthcurves(filename):
-    """Imports Tecan's default excel output for time-course data,
+    """Imports Biotek's default excel output for time-course data,
     parses out separate measurement types (if there are multiple).
     
     Parameters

@@ -386,6 +386,9 @@ def plot_growthcurves(data=None,
 def save(plot, filename, filetype='html'):
     """
     Saves supplied plot with the supplied filename. Default
-    format is html. Can also save as png or svg.
+    format is html. Can also save as png.
     """
+    if filetype=='svg':
+        raise RuntimeError("svg format not supported with Bokeh backend in Holoviews.")
+                           
     hv.save(plot, filename, fmt=filetype)
