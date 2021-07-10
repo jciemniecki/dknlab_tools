@@ -1,7 +1,9 @@
 import holoviews as hv
 import numpy as np
 from holoviews import opts
+import pandas as pd
 import bokeh.palettes
+import scipy.interpolate
 hv.extension('bokeh')
 hv.opts.defaults(opts.NdOverlay(legend_position='right',
                                 legend_offset=(10,0)))
@@ -382,6 +384,144 @@ def plot_growthcurves(data=None,
             chart = curve
             
         return chart
+    
+def plot_SYTO9_PI(data=None,
+                  groups_to_plot=None,
+                  xaxis='Position Z',
+                  palette=None,
+                  volume_yaxis_log=False,
+                  height=400,
+                  width=700,
+                  show_all_data=True,
+                  save_smoothed=False):
+    
+    data = data[data['File'].isin(groups_to_plot)].sort_values(by='Position Z')
+    smoothed_df = pd.DataFrame()#columns=['Position Z','Smoothed Volume','Smoothed PI Intensity','Smoothed SYTO9 Intensity','ID','File'])
+    
+    # Code below from BeBi103a lesson "Time Series Data", written by Justin Bois 2019
+    # Adapted by John Ciemniecki 2021
+    #------------
+    for group in groups_to_plot:
+        
+        results_df=pd.DataFrame()
+        
+        temp = data[data['File']==group]
+        
+        # Determine smoothing factor from rule of thumb (use f = 0.05)
+        smooth_factor_volume = 0.05 * (temp['Volume']**2).sum()
+        smooth_factor_SYTO9 = 0.05 * (temp['SYTO-9 Intensity']**2).sum()
+        smooth_factor_PI = 0.05 * (temp['PI Intensity']**2).sum()
+        
+        # Set up an scipy.interpolate.UnivariateSpline instance
+        Zs = temp['Position Z'].values
+        Vs = temp['Volume'].values
+        Ss = temp['SYTO-9 Intensity'].values
+        Ps = temp['PI Intensity'].values
+        
+        Vspl = scipy.interpolate.UnivariateSpline(Zs, Vs, s=smooth_factor_volume)
+        Sspl = scipy.interpolate.UnivariateSpline(Zs, Ss, s=smooth_factor_SYTO9)
+        Pspl = scipy.interpolate.UnivariateSpline(Zs, Ps, s=smooth_factor_PI)
+        
+        # spl is now a callable function
+        Zs_spline = np.linspace(Zs[0], Zs[-1], 500)
+        Vs_spline = Vspl(Zs_spline)
+        Ss_spline = Sspl(Zs_spline)
+        Ps_spline = Pspl(Zs_spline)
+        
+        results_df['Position Z'] = Zs_spline
+        results_df['Smoothed Volume'] = Vs_spline
+        results_df['Smoothed PI Intensity'] = Ps_spline
+        results_df['Smoothed SYTO-9 Intensity'] = Ss_spline
+        results_df['File'] = group
+        
+        # Will include, not sure if I can trust the order has been maintained
+        results_df['ID'] = temp['ID']
+        
+        smoothed_df = smoothed_df.append(results_df)
+                                        
+    #-----------
+    
+    # Plot results
+    v_plot = hv.Scatter(data=data,
+                        kdims='Position Z',
+                        vdims=['Volume', 'File']
+                    ).groupby(
+                        'File'
+                    ).opts(
+                        height=height,
+                        width=width,
+                        logy=volume_yaxis_log,
+                        alpha=0.25,
+                        muted_fill_alpha=0.0,
+                        muted_line_alpha=0.0,
+                        padding=0.1,
+                    ).overlay()
+    
+    s_plot = hv.Scatter(data=data,
+                        kdims='Position Z',
+                        vdims=['SYTO-9 Intensity', 'File']
+                    ).groupby(
+                        'File'
+                    ).opts(
+                        height=height,
+                        width=width,
+                        alpha=0.25,
+                        muted_fill_alpha=0.0,
+                        muted_line_alpha=0.0,
+                    ).overlay()
+    
+    p_plot = hv.Scatter(data=data,
+                        kdims='Position Z',
+                        vdims=['PI Intensity', 'File']
+                    ).groupby(
+                        'File'
+                    ).opts(
+                        height=height,
+                        width=width,
+                        alpha=0.25,
+                        muted_fill_alpha=0.0,
+                        muted_line_alpha=0.0,
+                    ).overlay()
+    
+    vs_plot = hv.Curve(data=smoothed_df,
+                       kdims='Position Z',
+                       vdims=['Smoothed Volume', 'File']
+                    ).groupby(
+                       'File'
+                    ).opts(
+                       height=height,
+                       width=width,
+                       logy=volume_yaxis_log,
+                       muted_alpha=0,
+                       padding=0.1,
+                    ).overlay()
+    
+    ss_plot = hv.Curve(data=smoothed_df,
+                       kdims='Position Z',
+                       vdims=['Smoothed SYTO-9 Intensity', 'File']
+                    ).groupby(
+                       'File'
+                    ).opts(
+                       height=height,
+                       width=width,
+                       muted_alpha=0,
+                    ).overlay()
+    
+    ps_plot = hv.Curve(data=smoothed_df,
+                       kdims='Position Z',
+                       vdims=['Smoothed PI Intensity', 'File']
+                    ).groupby(
+                       'File'
+                    ).opts(
+                       height=height,
+                       width=width,
+                       muted_alpha=0,
+                    ).overlay()
+    
+    
+    return (v_plot * vs_plot) + (s_plot * ss_plot) + (p_plot * ps_plot)
+
+    
     
 def save(plot, filename, filetype='html'):
     """
