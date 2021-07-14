@@ -32,14 +32,16 @@ def import_agg_SYTO9_PI(folder_name, single_image=False):
                 
         zpos_file = glob.glob(i + '/*Position.csv')
         zpos = pd.read_csv(zpos_file[0], header=2, usecols=['Position Z'])
+        zpos.rename(columns={'Position Z':'Position Z (µm)'}, inplace=True)
         vol_file = glob.glob(i + '/*Volume.csv')
         vol = pd.read_csv(vol_file[0], header=2, usecols=['Volume'])
+        vol.rename(columns={'Volume':'Volume (µm^3)'}, inplace=True)
         dead_file = glob.glob(i + '/*Intensity_Mean_Ch=2_Img=1.csv')
         dead = pd.read_csv(dead_file[0], header=2, usecols=['Intensity Mean'])
-        dead.rename(columns={'Intensity Mean':'PI Intensity'}, inplace=True)
+        dead.rename(columns={'Intensity Mean':'PI Intensity (AU)'}, inplace=True)
         live_file = glob.glob(i + '/*Intensity_Mean_Ch=1_Img=1.csv')
         live = pd.read_csv(live_file[0], header=2, usecols=['Intensity Mean', 'ID'])
-        live.rename(columns={'Intensity Mean':'SYTO-9 Intensity'}, inplace=True)
+        live.rename(columns={'Intensity Mean':'SYTO-9 Intensity (AU)'}, inplace=True)
         
         result = pd.concat([zpos, vol, dead, live], axis=1)
         
