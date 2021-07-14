@@ -389,7 +389,7 @@ def plot_SYTO9_PI(data=None,
                   groups_to_plot=None,
                   xaxis='Position Z',
                   palette=None,
-                  volume_yaxis_log=False,
+                  volume_yaxis_log=True,
                   height=400,
                   width=700,
                   show_all_data=True,
@@ -408,28 +408,28 @@ def plot_SYTO9_PI(data=None,
         temp = data[data['File']==group]
         
         # Determine smoothing factor from rule of thumb (use f = 0.05)
-        smooth_factor_volume = 0.05 * (temp['Volume']**2).sum()
+        #smooth_factor_volume = 0.05 * (temp['Volume']**2).sum()
         smooth_factor_SYTO9 = 0.05 * (temp['SYTO-9 Intensity']**2).sum()
         smooth_factor_PI = 0.05 * (temp['PI Intensity']**2).sum()
         
-        # Set up an scipy.interpolate.UnivariateSpline instance
+        # Set up a scipy.interpolate.UnivariateSpline instance
         Zs = temp['Position Z'].values
-        Vs = temp['Volume'].values
+        #Vs = temp['Volume'].values
         Ss = temp['SYTO-9 Intensity'].values
         Ps = temp['PI Intensity'].values
         
-        Vspl = scipy.interpolate.UnivariateSpline(Zs, Vs, s=smooth_factor_volume)
+        #Vspl = scipy.interpolate.UnivariateSpline(Zs, Vs, s=smooth_factor_volume)
         Sspl = scipy.interpolate.UnivariateSpline(Zs, Ss, s=smooth_factor_SYTO9)
         Pspl = scipy.interpolate.UnivariateSpline(Zs, Ps, s=smooth_factor_PI)
         
         # spl is now a callable function
         Zs_spline = np.linspace(Zs[0], Zs[-1], 500)
-        Vs_spline = Vspl(Zs_spline)
+        #Vs_spline = Vspl(Zs_spline)
         Ss_spline = Sspl(Zs_spline)
         Ps_spline = Pspl(Zs_spline)
         
         results_df['Position Z'] = Zs_spline
-        results_df['Smoothed Volume'] = Vs_spline
+        #results_df['Smoothed Volume'] = Vs_spline
         results_df['Smoothed PI Intensity'] = Ps_spline
         results_df['Smoothed SYTO-9 Intensity'] = Ss_spline
         results_df['File'] = group
@@ -483,18 +483,18 @@ def plot_SYTO9_PI(data=None,
                         muted_line_alpha=0.0,
                     ).overlay()
     
-    vs_plot = hv.Curve(data=smoothed_df,
-                       kdims='Position Z',
-                       vdims=['Smoothed Volume', 'File']
-                    ).groupby(
-                       'File'
-                    ).opts(
-                       height=height,
-                       width=width,
-                       logy=volume_yaxis_log,
-                       muted_alpha=0,
-                       padding=0.1,
-                    ).overlay()
+#     vs_plot = hv.Curve(data=smoothed_df,
+#                        kdims='Position Z',
+#                        vdims=['Smoothed Volume', 'File']
+#                     ).groupby(
+#                        'File'
+#                     ).opts(
+#                        height=height,
+#                        width=width,
+#                        logy=volume_yaxis_log,
+#                        muted_alpha=0,
+#                        padding=0.1,
+#                     ).overlay()
     
     ss_plot = hv.Curve(data=smoothed_df,
                        kdims='Position Z',
@@ -519,7 +519,7 @@ def plot_SYTO9_PI(data=None,
                     ).overlay()
     
     
-    return (v_plot * vs_plot) + (s_plot * ss_plot) + (p_plot * ps_plot)
+    return (v_plot) + (s_plot * ss_plot) + (p_plot * ps_plot)
 
     
     
