@@ -127,9 +127,17 @@ def wrangle_growthcurves(filename, merged=True):
     
     # The rows that indicate start/end of data
     rows = ['Cycle Nr.', 'End Time']
+    end_rows = ['End Time']
     
     # Make an iterable of the row numbers we're interested in
+    # Check to make sure there is only one 'End Time'
     inds = df[df[df.columns[0]].isin(rows)].index
+    n_endrows = len(df[df[df.columns[0]].isin(end_rows)].index)
+    
+    if n_endrows>1:
+        raise RuntimeError(f"""This method uses the string "End Time" to identify the end of the data. In the excel file supplied, there are {n_endrows} instances of "End Time" in the first column of the data. Please delete each instance except the final at the bottom of the datasheet.""")
+        
+    #if n_endrows==0:
     
     # Instantiate list of dfs per measurement type
     # Ignore last inds entry because it just marks the end of the data
@@ -168,7 +176,8 @@ def wrangle_growthcurves(filename, merged=True):
         
         # Rename the new, ambiguously named columns
         df_list[i] = df_list[i].rename(
-                                    columns={'variable':"Well",                                                          'value':m})
+                                    columns={'variable':"Well",
+                                             'value':m})
         
         # Delete any rows that remain with 'OVRFLW' or NaN values
         df_list[i][m] = pd.to_numeric(df_list[i][m], errors='coerce')
