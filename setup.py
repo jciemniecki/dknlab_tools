@@ -24,14 +24,15 @@ setup(
     long_description_content_type='ext/markdown',
     packages=find_packages(),
     install_requires=[
+        'jupyterlab',
         'pandas',
         'numpy',
         'datetime',
         'scipy',
         'bokeh',
         'holoviews',
-        'os',
-        'glob',
+        'openpyxl',
+        'xlrd',
     ],
     classifiers=(
         "Programming Language :: Python :: 3",
