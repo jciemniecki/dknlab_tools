@@ -164,7 +164,7 @@ def wrangle_growthcurves(filename, merged=True):
         df_list[i] = df_list[i].dropna(how='all')
         
         # Add a time column in units of hours
-        hours = (df_list[i]['Time [s]']/3600).round()
+        hours = (df_list[i]['Time [s]']/3600).round(decimals=5)
         df_list[i]['Time [hr]'] = hours
         
         # Melt all the well identifier columns (e.g. A1, A2, etc.)
