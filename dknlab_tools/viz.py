@@ -135,6 +135,7 @@ def plot_growthcurves(data=None,
     palette : (list) color palette to use. If None is supplied, will use
         Category10 palette by default. (can find others in bokeh.palettes)
     yaxis_log : (boolean) to toggle display of log axes in y.
+    ylim : (tuple) to set the y axis range.
     height : (int) height of individual plots
     width : (int) width of individual plots
     cols : (int) number of columns to display the plots in
@@ -532,3 +533,143 @@ def save(plot, filename, filetype='html'):
         raise RuntimeError("svg format not supported with Bokeh backend in Holoviews.")
                            
     hv.save(plot, filename, fmt=filetype)
+    
+    
+    
+def _lin_regression_timeseries(data, xaxis, yaxis, time_range):
+    # y = mx+b --> y = Ap where A = [x,1] and p = [m,b]
+    df = data[(data[xaxis]>=time_range[0]) & (data[xaxis]<=time_range[1])]
+    t = df[xaxis].to_numpy()
+    A = np.c_[t, np.ones(len(t))]
+    y = df[yaxis].to_numpy()
+    m, b = np.linalg.lstsq(A,y,rcond=None)[0]
+    return m
+
+
+
+def plot_slopes(data=None,
+                xaxis='Time [hr]',
+                yaxis=None,
+                time_range=None,
+                invert_slope=False,
+                plotby=None,
+                groupby=None, 
+                yaxis_label='Rate of change',
+                yaxis_log=False,
+                multiply_by=None,
+                height=400,
+                width=500,
+                return_slopes=False):
+    
+    """Plots slopes of time series data from dknlab_tools.import_growthcurves().
+
+    kwargs
+    ----------
+    data : (DataFrame) assumes a tidy dataframe specifically from dknlab_tools.import_growthcurves(), but any tidy dataframe should also work,
+    xaxis : (String) column of dataframe to use as the x axis during the linear fit,
+    yaxis : (String) column of dataframe to use as the y axis during the linear fit,
+    time_range : (List of 2 ints or floats) range of supplied xaxis to perform a linear fit over,
+    invert_slope : (Boolean) if True, inverts the sign of slope values,
+    plotby : (String or List) column(s) of dataframe to groupby into separate output plots of the data,
+    groupby : (String or List) column(s) of dataframe to group data by; resulting groups will be the categories on the x axis of the output plot, 
+    yaxis_label : (String) label on yaxis of output plot,
+    yaxis_log : (Boolean) if True, plots slopes on a log axis,
+    multiply_by : (Float) value to multiply all slopes by, generally for transforming units of slope values,
+    height : (Int) height of plot(s),
+    width : (Int) width of plot(s)m
+    return_slopes : (Boolean) if True, function additionally returns a DataFrame of the slope values organized in a tidy dataframe
+    
+    Returns
+    -------
+    chart : (NdOverlay) exploratory plot of slopes
+    slopes : (DataFrame) tidy dataframe of slope values
+    """
+
+    df = pd.DataFrame(data)
+    
+    if multiply_by!=None and not isinstance(multiply_by,float):
+        raise RuntimeError('multiply_by must be a float.')
+    
+    if (plotby!=None) and (type(plotby) is not list):
+        plotby = [plotby]
+    if groupby==None:
+        raise RuntimeError('Must specify at least one column to group by for plotting.')
+    elif type(groupby) is not list:
+        groupby = [groupby]
+    
+    # create new cols that are concatenations of cols specified by kwargs
+    if plotby==None:
+        df['plotby'] = ''
+    elif len(plotby)==1:
+        df['plotby'] = df[plotby]
+    else:
+        df['plotby'] = df[plotby].apply(lambda row: ', '.join(row.values.astype(str)), axis=1)
+    
+    if len(groupby)==1:
+        df['groupby'] =df[groupby]
+    else:
+        df['groupby'] = df[groupby].apply(lambda row: ', '.join(row.values.astype(str)), axis=1)
+    
+    # calculate slopes within specified time_range of each well while retaining relevant labels
+    # if invert_slopes is True, take inverse
+    # if user has specified a value for multiply_by, multiply slopes by that value
+    slopes = df.groupby(['plotby','groupby']).apply(_lin_regression_timeseries, (xaxis), (yaxis), (time_range))
+    slopes = pd.DataFrame(slopes).reset_index()
+    slopes = slopes.rename(columns={0:yaxis_label})
+    if invert_slope==True:
+        slopes[yaxis_label] = -slopes[yaxis_label]
+    if multiply_by!=None:
+        slopes[yaxis_label] = slopes[yaxis_label] * multiply_by
+    
+    # if there is only one plot to make:
+    if plotby==None:
+        
+        plot = hv.BoxWhisker(slopes,
+                          kdims='groupby',
+                          vdims=yaxis_label
+                        ).opts(
+                          height=height,
+                          width=width,
+                          box_color='groupby',
+                          cmap='Category20',
+                          #size=10,
+                          logy=yaxis_log,
+                          #fill_alpha=0.1,
+                          xlabel=', '.join(groupby),
+                          show_grid=True,
+                          show_legend=False,
+                          padding=0.1,
+                          #jitter=0.2,
+                          xrotation=45
+                        )
+    
+    # if the user has specified multiple plots to be made:
+    else:
+            
+        plot = hv.BoxWhisker(slopes,
+                          kdims=['groupby','plotby'],
+                          vdims=yaxis_label
+                        ).groupby(
+                          ['plotby']
+                        ).opts(
+                          height=height,
+                          width=width,
+                          box_color='groupby',
+                          cmap='Category20',
+                          #size=10,
+                          show_legend=False,
+                          logy=yaxis_log,
+                          #fill_alpha=0.1,
+                          xlabel=', '.join(groupby),
+                          show_grid=True,
+                          padding=0.1,
+                          #jitter=0.2,
+                          xrotation=45
+                        ).layout(
+                          ['plotby']
+                        )
+    
+    if return_slopes==True:
+        return plot, slopes
+    else:
+        return plot
