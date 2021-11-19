@@ -553,7 +553,8 @@ def plot_slopes(data=None,
                 time_range=None,
                 invert_slope=False,
                 plotby=None,
-                groupby=None, 
+                groupby=None,
+                replicates_over='Well',
                 yaxis_label='Rate of change',
                 yaxis_log=False,
                 multiply_by=None,
@@ -571,7 +572,8 @@ def plot_slopes(data=None,
     time_range : (List of 2 ints or floats) range of supplied xaxis to perform a linear fit over,
     invert_slope : (Boolean) if True, inverts the sign of slope values,
     plotby : (String or List) column(s) of dataframe to groupby into separate output plots of the data,
-    groupby : (String or List) column(s) of dataframe to group data by; resulting groups will be the categories on the x axis of the output plot, 
+    groupby : (String or List) column(s) of dataframe to group data by; resulting groups will be the categories on the x axis of the output plot,
+    replicates_over : (String) column of dataframe that separates the replicates. For example, replicates are over different wells in a 96-well plate format. Pass None if dataset does not contain replicates.
     yaxis_label : (String) label on yaxis of output plot,
     yaxis_log : (Boolean) if True, plots slopes on a log axis,
     multiply_by : (Float) value to multiply all slopes by, generally for transforming units of slope values,
@@ -613,7 +615,12 @@ def plot_slopes(data=None,
     # calculate slopes within specified time_range of each well while retaining relevant labels
     # if invert_slopes is True, take inverse
     # if user has specified a value for multiply_by, multiply slopes by that value
-    slopes = df.groupby(['plotby','groupby']).apply(_lin_regression_timeseries, (xaxis), (yaxis), (time_range))
+    if replicates_over==None:
+        gg = ['plotby','groupby']
+    else:
+        gg = ['plotby','groupby',replicates_over]
+    
+    slopes = df.groupby(gg).apply(_lin_regression_timeseries, (xaxis), (yaxis), (time_range))
     slopes = pd.DataFrame(slopes).reset_index()
     slopes = slopes.rename(columns={0:yaxis_label})
     if invert_slope==True:
