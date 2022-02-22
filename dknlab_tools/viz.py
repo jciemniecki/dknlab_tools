@@ -89,6 +89,8 @@ def _check_palette(palette, colorby, data):
     
         n_colorby_cats = data.groupby(colorby).ngroups
         
+        
+        
         if palette is None:
         
             if n_colorby_cats > 10:

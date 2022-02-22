@@ -41,6 +41,7 @@ def plate_condmap(filename,
     # Reformat into well identifier (A1, A2, etc)
     df['Well'] = df['row'].apply(str) + df['column'].apply(str)
     df.drop(columns = ["row", "column"], inplace=True)
+    df = df.dropna(axis=0)
     
     # Pivot to be tidy, then eliminate extra index names
     df = df.pivot(index='Well', columns='variable')
@@ -153,13 +154,15 @@ def _str2hours(datetime_string):
     return round(time_in_hours, 3)
 
 
-def wrangle_growthcurves(filename):
+def wrangle_growthcurves(filename, new_bioteks=True):
     """Imports Biotek's default excel output for time-course data,
     parses out separate measurement types (if there are multiple).
     
     Parameters
     ----------
     filename : (string) filepath to the Tecan excel output
+    
+    new_bioteks : (boolean) if using default output of new or old biotek plate readers
     
     Returns
     -------
@@ -169,15 +172,23 @@ def wrangle_growthcurves(filename):
     
     # Import data, immediately drop any rows that have all NaN values.
     df = pd.read_excel(filename, sheet_name=0, header=None)
-
-    # The rows that indicate start/end of a measurement type
-    rows = ['Kinetic read']
     
+    # New bioteks output data with a spacer column and with time instead of kinetic read as time label
+    # The rows variable indicates start/end of a measurement type
+    if new_bioteks==True:
+        data_col=1
+        label_spacer=2
+        rows = ['Time']
+    else:
+        data_col=0
+        label_spacer=1
+        rows = ['Kinetic read']
+        
     # Make an iterable of those row numbers plus the end of the dataframe
-    m_inds = df[df[df.columns[0]].isin(rows)].index
+    m_inds = df[df[df.columns[data_col]].isin(rows)].index
     n_measurements = len(m_inds)
     m_inds = m_inds.union([len(df)+3])
-    
+
     # Instantiate list of size n per measurement type
     df_list = [0] * n_measurements
     
@@ -188,10 +199,10 @@ def wrangle_growthcurves(filename):
     # (one per measurement) and tidy them
     for i in range(n_measurements):
         
-        # If there is a row above 'Kinetic read' store it 
+        # If there is a row above 'Kinetic read'/'Time' store it 
         # as the name of the measurement type
         if (m_inds[i]-1) >= 0:
-            m = str(df.iloc[m_inds[i]-1,0])
+            m = str(df.iloc[m_inds[i]-label_spacer,0])
             measurement_list.append(m)
         else:
             measurement_list.append('value'+str(i))
@@ -208,25 +219,26 @@ def wrangle_growthcurves(filename):
         # Pull out the timepoints, in decimal hours,
         # from the STUPID excel datetime format
         # using custom _str2hours function
-        hours = df_list[i]['Kinetic read'].astype('str').apply(_str2hours)
-        
+        hours = df_list[i][rows[0]].astype('str').apply(_str2hours)
+
         # Add a time column in units of hours
         df_list[i]['Time [hr]'] = hours
         
         # Melt all the well identifier columns (e.g. A1, A2, etc.)
         df_list[i] = pd.melt(df_list[i],
-                             id_vars=['Time [hr]','Kinetic read'])
+                             id_vars=['Time [hr]',rows[0]])
         
         # Rename the new, ambiguously named columns
         df_list[i] = df_list[i].rename(
                                     columns={'variable':'Well','value':m})
         
         # Delete Kinetic read column
-        df_list[i] = df_list[i].drop('Kinetic read', axis=1)
+        df_list[i] = df_list[i].drop(rows[0], axis=1)
         
-        # Delete any rows that remain with 'OVRFLW' or NaN values
+        # Delete any rows that remain with 'OVRFLW', NaN, or T˚ values
         df_list[i][m] = pd.to_numeric(df_list[i][m], errors='coerce')
         df_list[i] = df_list[i].dropna(how='any')
+        df_list[i] = df_list[i][df_list[i]["Well"].str.contains("T")==False]
     
 #     if merged == True:
         
@@ -250,6 +262,7 @@ def wrangle_growthcurves(filename):
     
 def import_growthcurves(data_file_path, 
                         condition_map_file_path,
+                        new_bioteks=True,
                         verbose=False):
     """Imports Biotek data with a condition map and outputs a collection
     of tidy dataframes ready for EDA with the viz module.
@@ -259,6 +272,7 @@ def import_growthcurves(data_file_path,
     data_file_path : (string) filepath to the Biotek excel output
     condition_map_file_path : (string) filepath to the specific, filled-out 
         excel template
+    new_bioteks : (boolean) if using default output of new or old biotek plate readers
     verbose : (boolean) whether or not the supplied condition
         map is in a verbose format; that is, with every condition
         specified even when the concentration of an addition is 0.
@@ -271,7 +285,7 @@ def import_growthcurves(data_file_path,
     df_list : (tuple of DataFrame) each tidy, each annotated
     """
     
-    df_data = wrangle_growthcurves(data_file_path)
+    df_data = wrangle_growthcurves(data_file_path, new_bioteks=True)
     
     condition_df = plate_condmap(condition_map_file_path, verbose=verbose)
     
