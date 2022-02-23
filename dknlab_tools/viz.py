@@ -85,27 +85,36 @@ def _check_columns(check, df):
             if check not in df.columns:
                 raise RuntimeError(f"Supplied column name {check} does not exist. Spelling must match intended column name in dataframe.")
     
-def _check_palette(palette, colorby, data):
+def _check_palette(palette, colorby, data, plotby=None):
     
+    # If only colorby is passed, number of colors is equal to size of colorby
+    # If there is both a plotby and colorby, first the data are grouped by
+    # plotby, then each plot dataset is grouped by colorby to determine the
+    # max number of colors needed.
+    if plotby==None:
         n_colorby_cats = data.groupby(colorby).ngroups
+    else:
+        plot_groups = data.groupby(plotby)
+        plot_groups_colorby_cats = []
+        for _, group in plot_groups:
+            plot_groups_colorby_cats.append(group.groupby(colorby).ngroups)
+        n_colorby_cats = max(plot_groups_colorby_cats)
         
-        
-        
-        if palette is None:
-        
-            if n_colorby_cats > 10:
-                raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
-                
-            elif n_colorby_cats < 3:
-                return bokeh.palettes.Category10[3]
+    if palette is None:
+    
+        if n_colorby_cats > 10:
+            raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.") 
             
-            else:
-                return bokeh.palettes.Category10[n_colorby_cats]
-            
-        elif n_colorby_cats > len(palette):
-            raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.")
+        elif n_colorby_cats < 3:
+            return bokeh.palettes.Category10[3]
+        
         else:
-            return palette
+            return bokeh.palettes.Category10[n_colorby_cats]
+        
+    elif n_colorby_cats > len(palette):
+        raise RuntimeError(f"There are not enough colors in the palette to support the number of categories in {colorby}. Please specify a palette with at least {n_colorby_cats} colors.")
+    else:
+        return palette
     
 def plot_growthcurves(data=None,
                       yaxis=None,
@@ -328,7 +337,7 @@ def plot_growthcurves(data=None,
             
         # Check to ensure the palette is large enough to support the data
         # If no palette was supplied, set to default Category10
-        palette = _check_palette(palette, colorby, data)
+        palette = _check_palette(palette, colorby, data, plotby=plotby)
         
         # Check for replicates
         replicates, data = _check_replicates(data,

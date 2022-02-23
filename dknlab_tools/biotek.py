@@ -41,7 +41,7 @@ def plate_condmap(filename,
     # Reformat into well identifier (A1, A2, etc)
     df['Well'] = df['row'].apply(str) + df['column'].apply(str)
     df.drop(columns = ["row", "column"], inplace=True)
-    df = df.dropna(axis=0)
+    df = df.dropna(subset=['variable'])
     
     # Pivot to be tidy, then eliminate extra index names
     df = df.pivot(index='Well', columns='variable')
@@ -194,7 +194,7 @@ def wrangle_growthcurves(filename, new_bioteks=True):
     
     # Instantiate empty list to hold names of measurements
     measurement_list = []
-
+    
     # Put dataframes into df_list
     # (one per measurement) and tidy them
     for i in range(n_measurements):
@@ -211,10 +211,12 @@ def wrangle_growthcurves(filename, new_bioteks=True):
         start_ind = m_inds[i]
         size = m_inds[i+1]-m_inds[i]-3
         
-        # Load in sub-df from excel file
+        # Load in sub-df from excel file, 
+        # and drop any timepoints that are NaN
         df_list[i] = pd.read_excel(filename, 
                                    skiprows=start_ind, 
                                    nrows=size)
+        df_list[i] = df_list[i].dropna(subset=rows, axis=0)
         
         # Pull out the timepoints, in decimal hours,
         # from the STUPID excel datetime format
@@ -258,7 +260,7 @@ def wrangle_growthcurves(filename, new_bioteks=True):
     
 #     else:
     return tuple(df_list)
-    
+
     
 def import_growthcurves(data_file_path, 
                         condition_map_file_path,
@@ -285,7 +287,7 @@ def import_growthcurves(data_file_path,
     df_list : (tuple of DataFrame) each tidy, each annotated
     """
     
-    df_data = wrangle_growthcurves(data_file_path, new_bioteks=True)
+    df_data = wrangle_growthcurves(data_file_path, new_bioteks=new_bioteks)
     
     condition_df = plate_condmap(condition_map_file_path, verbose=verbose)
     
