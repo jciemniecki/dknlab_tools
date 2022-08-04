@@ -691,3 +691,159 @@ def plot_slopes(data=None,
         return plot, slopes
     else:
         return plot
+    
+
+    
+def _growthrate_timeseries(data, xaxis, yaxis, n_timepoints):
+    
+    dt = n_timepoints - 1
+    t = data[xaxis].to_numpy()
+    y = np.log(data[yaxis].to_numpy()) # this is natural log, NOT log base 10
+    mu_inst = [(y[i]-y[i-dt])/(t[i]-t[i-dt]) for i in range(dt, len(min([t,y], key=len)))]
+    mu_max = max(mu_inst)
+    
+    # mu_max has an index that is shifted by dt relative to the corresponding time array
+    mu_max_ind = mu_inst.index(mu_max) + dt 
+    time_range = (t[mu_max_ind-dt], t[mu_max_ind])
+    
+    # mu_max is in hr^-1, doubling time is in hours, multiply by 60 for minutes
+    t_doubling = np.log(2) / mu_max * 60
+    
+    return pd.Series({0: mu_max, 'T_d (min)':t_doubling, 'Time Range': time_range})
+
+
+
+def plot_growthrates(data=None,
+                     xaxis='Time [hr]',
+                     yaxis=None,
+                     n_timepoints=6,
+                     plotby=None,
+                     groupby=None,
+                     replicates_over='Well',
+                     yaxis_label='µ (hr^-1)',
+                     multiply_by=None,
+                     height=400,
+                     width=300,
+                     return_growthrates=False):
+    """
+    Plots specific growth rate µ in units of hr^-1 of data from dknlab_tools.import_growthcurves().\n
+    Note for proper fit data should be collected in such a way so that there are at least six measurements\n
+    during the exponential growth of the curve. This can be achieved by increasing the frequency of measurement\n
+    (every 15 min is usually sufficient) and/or decreasing the initial innoculum size.\n
+    \n
+    Algorithm used is a sliding window slope calculation of semilog data. Maximum slope along the curve is returned.
+    
+    kwargs
+    ----------
+    data : (DataFrame) assumes a tidy dataframe specifically from dknlab_tools.import_growthcurves(), but any tidy dataframe should also work,
+    xaxis : (String) column of dataframe to use as the x axis during the linear fit,
+    yaxis : (String) column of dataframe to use as the y axis during the linear fit,
+    time_range : (List of 2 ints or floats) range of supplied xaxis to perform a linear fit over,
+    invert_slope : (Boolean) if True, inverts the sign of slope values,
+    plotby : (String or List) column(s) of dataframe to groupby into separate output plots of the data,
+    groupby : (String or List) column(s) of dataframe to group data by; resulting groups will be the categories on the x axis of the output plot,
+    replicates_over : (String) column of dataframe that separates the replicates. For example, replicates are over different wells in a 96-well plate format. Pass None if dataset does not contain replicates.
+    yaxis_label : (String) label on yaxis of output plot,
+    yaxis_log : (Boolean) if True, plots slopes on a log axis,
+    multiply_by : (Float) value to multiply all slopes by, generally for transforming units of slope values,
+    height : (Int) height of plot(s),
+    width : (Int) width of plot(s)m
+    return_slopes : (Boolean) if True, function additionally returns a DataFrame of the slope values organized in a tidy dataframe
+    
+    Returns
+    -------
+    chart : (NdOverlay) exploratory plot of growth rates
+    slopes : (DataFrame) tidy dataframe of growth rates and time range of max growth
+    """
+
+    df = pd.DataFrame(data)
+    
+    if multiply_by!=None and not isinstance(multiply_by,float):
+        raise RuntimeError('multiply_by must be a float.')
+    
+    if (plotby!=None) and (type(plotby) is not list):
+        plotby = [plotby]
+    if groupby==None:
+        raise RuntimeError('Must specify at least one column to group by for plotting.')
+    elif type(groupby) is not list:
+        groupby = [groupby]
+    
+    # create new cols that are concatenations of cols specified by kwargs
+    if plotby==None:
+        df['plotby'] = ''
+    elif len(plotby)==1:
+        df['plotby'] = df[plotby]
+    else:
+        df['plotby'] = df[plotby].apply(lambda row: ', '.join(row.values.astype(str)), axis=1)
+    
+    if len(groupby)==1:
+        df['groupby'] =df[groupby]
+    else:
+        df['groupby'] = df[groupby].apply(lambda row: ', '.join(row.values.astype(str)), axis=1)
+    
+    # find growth rate within sliding specified n_timepoints of each well while retaining relevant labels
+    # if user has specified a value for multiply_by, multiply slopes by that value
+    if replicates_over==None:
+        gg = ['plotby','groupby']
+    else:
+        gg = ['plotby','groupby',replicates_over]
+    
+    rates = df.groupby(gg).apply(_growthrate_timeseries, (xaxis), (yaxis), (n_timepoints))
+    rates = pd.DataFrame(rates).reset_index()
+    rates = rates.rename(columns={0:yaxis_label})
+    
+    if multiply_by!=None:
+        rates[yaxis_label] = rates[yaxis_label] * multiply_by
+    
+    # if there is only one plot to make:
+    if plotby==None:
+        
+        plot = hv.BoxWhisker(rates,
+                          kdims='groupby',
+                          vdims=yaxis_label
+                        ).opts(
+                          height=height,
+                          width=width,
+                          box_color='groupby',
+                          cmap='Category20',
+                          #size=10,
+                          #logy=yaxis_log,
+                          #fill_alpha=0.1,
+                          xlabel=', '.join(groupby),
+                          show_grid=True,
+                          show_legend=False,
+                          padding=0.1,
+                          #jitter=0.2,
+                          xrotation=45
+                        )
+    
+    # if the user has specified multiple plots to be made:
+    else:
+            
+        plot = hv.BoxWhisker(rates,
+                          kdims=['groupby','plotby'],
+                          vdims=yaxis_label
+                        ).groupby(
+                          ['plotby']
+                        ).opts(
+                          height=height,
+                          width=width,
+                          box_color='groupby',
+                          cmap='Category20',
+                          #size=10,
+                          show_legend=False,
+                          #logy=yaxis_log,
+                          #fill_alpha=0.1,
+                          xlabel=', '.join(groupby),
+                          show_grid=True,
+                          padding=0.1,
+                          #jitter=0.2,
+                          xrotation=45
+                        ).layout(
+                          ['plotby']
+                        )
+    
+    if return_growthrates==True:
+        return plot, rates
+    else:
+        return plot
