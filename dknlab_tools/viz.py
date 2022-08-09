@@ -727,7 +727,7 @@ def plot_growthrates(data=None,
                      return_growthrates=False):
     """
     Plots specific growth rate µ in units of hr^-1 of data from dknlab_tools.import_growthcurves().\n
-    Note for proper fit data should be collected in such a way so that there are at least six measurements\n
+    Note that for proper fit data should be collected in such a way so that there are at least six measurements\n
     during the exponential growth of the curve. This can be achieved by increasing the frequency of measurement\n
     (every 15 min is usually sufficient) and/or decreasing the initial innoculum size.\n
     \n
