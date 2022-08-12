@@ -4,6 +4,7 @@ from holoviews import opts
 import pandas as pd
 import bokeh.palettes
 import scipy.interpolate
+import scipy.signal
 hv.extension('bokeh')
 hv.opts.defaults(opts.NdOverlay(legend_position='right',
                                 legend_offset=(10,0)))
@@ -698,18 +699,24 @@ def _growthrate_timeseries(data, xaxis, yaxis, n_timepoints):
     
     dt = n_timepoints - 1
     t = data[xaxis].to_numpy()
-    y = np.log(data[yaxis].to_numpy()) # this is natural log, NOT log base 10
+    
+    # apply a rolling median filter in y to smooth out any blips
+    od = scipy.signal.medfilt(data[yaxis].to_numpy(), kernel_size=5)
+    
+    # Calculate instantaneous mu across curve
+    y = np.log(od) # this is natural log, NOT log base 10
     mu_inst = [(y[i]-y[i-dt])/(t[i]-t[i-dt]) for i in range(dt, len(min([t,y], key=len)))]
     mu_max = max(mu_inst)
     
     # mu_max has an index that is shifted by dt relative to the corresponding time array
-    mu_max_ind = mu_inst.index(mu_max) + dt 
+    mu_max_ind = mu_inst.index(mu_max) + dt
     time_range = (t[mu_max_ind-dt], t[mu_max_ind])
     
     # mu_max is in hr^-1, doubling time is in hours, multiply by 60 for minutes
     t_doubling = np.log(2) / mu_max * 60
+    t_doubling_r = np.round(t_doubling, decimals=1)
     
-    return pd.Series({0: mu_max, 'T_d (min)':t_doubling, 'Time Range': time_range})
+    return pd.Series({0: mu_max, 'T_d (min)':t_doubling_r, 'Time Range': time_range})
 
 
 
