@@ -185,10 +185,10 @@ def wrangle_growthcurves(filename, new_bioteks=True):
         rows = ['Kinetic read']
         
     # Make an iterable of those row numbers plus the end of the dataframe
-    m_inds = df[df[df.columns[data_col]].isin(rows)].index
+    m_inds = df[df[df.columns[data_col]].isin(rows)].index   
     n_measurements = len(m_inds)
     m_inds = m_inds.union([len(df)+3])
-
+    
     # Instantiate list of size n per measurement type
     df_list = [0] * n_measurements
     
