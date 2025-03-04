@@ -122,7 +122,10 @@ def _str2hours(datetime_string):
     
     # If over 24 hours, will convert 'date HH:MM:SS' to 'HH:MM:SS' 
     # and store number of hours to account for
-    if ' ' in datetime_string:
+    if 'day' in datetime_string:
+        days, _, time_string = datetime_string.split()
+        accounted_hours = int(days) * 24
+    elif ' ' in datetime_string:
         days, time_string = datetime_string.split()
         accounted_hours = int(days[-2:]) * 24
     else:
@@ -191,7 +194,7 @@ def wrangle_growthcurves(filename, new_bioteks=True):
     
     # Instantiate list of size n per measurement type
     df_list = [0] * n_measurements
-    
+     
     # Instantiate empty list to hold names of measurements
     measurement_list = []
     
