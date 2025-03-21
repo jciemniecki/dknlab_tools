@@ -174,7 +174,13 @@ def wrangle_growthcurves(filename, new_bioteks=True):
     """
     
     # Import data, immediately drop any rows that have all NaN values.
-    df = pd.read_excel(filename, sheet_name=0, header=None)
+    # If the user hasn't removed the "Results" matrix that is an output sometimes,
+    # delete it and everything below it from dataframe.
+    raw = pd.read_excel(filename, sheet_name=0, header=None)
+    if raw.iloc[:,0].isin(["Results"]).any():
+        df = raw[raw.iloc[:,0].where(raw.iloc[:,0] == 'Results', np.nan).ffill() != 'Results']
+    else:
+        df = raw
     
     # New bioteks output data with a spacer column and with time instead of kinetic read as time label
     # The rows variable indicates start/end of a measurement type
@@ -186,7 +192,7 @@ def wrangle_growthcurves(filename, new_bioteks=True):
         data_col=0
         label_spacer=1
         rows = ['Kinetic read']
-        
+
     # Make an iterable of those row numbers plus the end of the dataframe
     m_inds = df[df[df.columns[data_col]].isin(rows)].index   
     n_measurements = len(m_inds)
